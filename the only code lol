@@ -1,0 +1,159 @@
+import os
+import requests
+import subprocess
+from git import Repo
+
+# Replace with your GitHub token
+GITHUB_TOKEN = "a random github token of yours"
+
+# Directory to store cloned repositories and downloaded files
+OUTPUT_DIR = "cloned_repos"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# GitHub API headers
+HEADERS = {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json",
+}
+
+# Function to fetch content from a URL
+def fetch_url_content(url):
+    """Fetch content from a URL."""
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        print(f"Fetched content from {url}")
+        return response.text
+    except Exception as e:
+        print(f"Error fetching content from {url}: {e}")
+        return None
+
+# Function to download a file
+def download_file(url, destination):
+    """Download a file from a URL."""
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        with open(destination, "wb") as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                file.write(chunk)
+        print(f"File downloaded: {destination}")
+    except Exception as e:
+        print(f"Error downloading file from {url}: {e}")
+
+# Function to execute internet-dependent commands
+def execute_internet_command(command):
+    """Execute a command that requires internet access."""
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True
+        )
+        print(f"Executed command: {command}")
+        return {
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode
+        }
+    except Exception as e:
+        print(f"Error executing command '{command}': {e}")
+        return {"error": str(e)}
+
+# GitHub functions
+def fetch_repos_from_topic(topic_url):
+    """Fetch repository URLs from a GitHub topic page."""
+    topic = topic_url.rstrip("/").split("/")[-1]
+    api_url = f"https://api.github.com/search/repositories?q=topic:{topic}"
+    response = requests.get(api_url, headers=HEADERS)
+    response.raise_for_status()
+    repos = response.json()["items"]
+    return [repo["html_url"] for repo in repos]
+
+def clone_repo(repo_url):
+    """Clone a repository."""
+    repo_name = repo_url.rstrip("/").split("/")[-1]
+    repo_path = os.path.join(OUTPUT_DIR, repo_name)
+    if not os.path.exists(repo_path):
+        print(f"Cloning {repo_url}...")
+        Repo.clone_from(repo_url, repo_path)
+    else:
+        print(f"Repository {repo_url} already cloned.")
+
+# Process a list of URLs
+def process_urls(urls):
+    """Process each URL, fetching and cloning repositories."""
+    for url in urls:
+        if "github.com/topics" in url:
+            print(f"Fetching repositories for topic: {url}")
+            repo_urls = fetch_repos_from_topic(url)
+            for repo_url in repo_urls:
+                clone_repo(repo_url)
+        elif "github.com" in url:
+            print(f"Cloning repository: {url}")
+            clone_repo(url)
+        else:
+            print(f"Unsupported URL format: {url}")
+
+# Prepare data for training
+def prepare_data_for_training():
+    """Combine all code files for training."""
+    combined_code = ""
+    for root, _, files in os.walk(OUTPUT_DIR):
+        for file in files:
+            if file.endswith((".py", ".js", ".java", ".cpp", ".c", ".ts")):  # Add more extensions as needed
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        combined_code += f.read() + "\n\n"
+                except Exception as e:
+                    print(f"Error reading {file_path}: {e}")
+
+    # Save combined code to a single file
+    with open("training_data.txt", "w", encoding="utf-8") as f:
+        f.write(combined_code)
+    print("Code combined and saved to training_data.txt")
+
+# Demonstrate internet access functionality
+def demo_internet_access():
+    """Demonstrate internet access functionality."""
+    test_url = "https://www.example.com"
+    test_file_url = "https://www.example.com/example.txt"
+
+    # Fetch content from a URL
+    content = fetch_url_content(test_url)
+    if content:
+        print(f"Content from {test_url}:\n{content[:200]}...")  # Display first 200 characters
+
+    # Download a file
+    download_file(test_file_url, "downloaded_example.txt")
+
+    # Execute a ping command (example of internet-dependent command)
+    ping_result = execute_internet_command("ping -c 4 www.google.com")
+    print("Ping STDOUT:", ping_result.get("stdout"))
+    print("Ping STDERR:", ping_result.get("stderr"))
+
+# Main execution
+def main():
+    print("Processing URLs and preparing training data...")
+    URLS = [
+        "https://github.com/Da2dalus/The-MALWARE-Repo",
+"https://github.com/vxunderground/MalwareSourceCode",
+"https://github.com/Virus-Samples/Malware-Sample-Sources",
+"https://github.com/topics/virus",
+"https://github.com/topics/malware-samples",
+"https://github.com/Cisco-Talos/clamav",
+"https://github.com/topics/antivirus-software",
+"https://github.com/topics/anti-virus",
+"https://github.com/topics/antivirus-source-code",
+"https://github.com/topics/antivirus?l=c%23",  # Example topic URL
+                 # Replace with actual repositories
+    ]
+    process_urls(URLS)
+    prepare_data_for_training()
+    print("Demonstrating internet access...")
+    demo_internet_access()
+
+if __name__ == "__main__":
+    main()
